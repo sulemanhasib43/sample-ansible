@@ -1,0 +1,48 @@
+---
+
+- name: Remove Image if it already exists
+  docker_image:
+    name: "{{ item }}"
+    state: absent
+    force: yes
+  with_items:
+    - "git.hub.com:1234/store.{{ storeVersion }}:latest"
+    - "swarm.hub:4000/store.{{ storeVersion }}:latest"
+  ignore_errors: yes
+
+- name: Build docker image and push it to a private registry
+  docker_image:
+    path: "{{sales_root}}/images/{{storeVersion}}"
+    name: "swarm.hub:4000/store.{{ storeVersion }}"
+    push: yes
+    tag: latest
+
+
+- name: Get Migrate Process Event ID
+  uri:
+    url: http://localhost:9999/migrate_prepare
+    method: GET
+    return_content: yes
+    status_code: 200
+    body_format: json
+  register: migratePrepare
+
+
+- name: Migrate Store(s) to desired image
+  uri:
+    url: http://localhost:9999/migrate_all_stores/
+    method: POST
+    body: {"stores" : "{{ storeId }}", "task_id" : "{{ migratePrepare.json.object }}", "image_tag" : "{{ storeVersion }}", "migrate_image" : "true", "migrate_db" : "false", "migrate_cdn" : "false"}
+    body_format: json
+    headers:
+      Content-Type: "application/json"
+
+- name: Preparing Store Name(s) for Docker Service Reloading
+  shell: echo {{ storeId }} | sed --expression='s/,/\n/g'
+  register: serviceId
+
+- name: Force Service Reload
+  shell: "docker service update --force --image swarm.hub:4000/store.{{ storeVersion }}:latest {{ item }}"
+  with_items:
+    - "{{ serviceId.stdout_lines }}"
+

@@ -1,0 +1,70 @@
+---
+
+# ECOMM & ADMIN BUILD FOR STORE
+
+- name: Selected Branches
+  debug:
+    msg: "Branch name is {{ branchName }}"
+
+- name: Running GULP Task
+  include_role:
+    name: common
+    tasks_from: gulpBuild
+  with_items: 
+    - "{{ w_dir}}/ecom/src/main/webapp"
+
+- name: Ecom & Admin, Maven Packaging 
+  include_role:
+    name: common
+    tasks_from: maven
+  with_items:
+    - mvn_dir: "{{ w_dir}}/ecom"
+    - mvn_dir: "{{ w_dir }}/admin"
+
+
+- name: Ecom & Admin, Updating application.properties and web.xml(Ecom) Template
+  include_role:
+    name: common
+    tasks_from: templateUpdate
+  with_items:
+    -
+      src: "ecom.store.j2"
+      dest: "{{ w_dir}}/ecom/target/ecom/WEB-INF/classes/application.properties"
+    - 
+      src: "ecom.store.web.xml.j2"
+      dest: "{{ w_dir}}/ecom/target/ecom/WEB-INF/web.xml"
+    - 
+      src: "admin.store.j2"
+      dest: "{{ w_dir}}/admin/target/admin-1.0/WEB-INF/classes/application.properties"
+
+- name: Ecom & Admin, Updating log4j.xml Template
+  include_role:
+    name: common
+    tasks_from: templateUpdate
+  with_items:
+    -
+      src: "ecom.store.log4j.xml.j2"
+      dest: "{{ w_dir}}/ecom/target/ecom/WEB-INF/classes/log4j.xml"
+    -
+      src: "admin.store.log4j.xml.j2"
+      dest: "{{ w_dir}}/admin/target/admin-1.0/WEB-INF/classes/log4j2.xml"
+
+- name: Removing Tomcat Sources
+  file:
+    path: "{{sales_root}}/images/{{storeVersion}}/tomcat/webapps"
+    state: "{{ item }}"
+  with_items:
+    - absent
+    - directory
+
+- name: Updating Ecom and Admin Sources
+  include_role:
+    name: common
+    tasks_from: updateTomcatSources
+  with_items:
+    - 
+      src: "{{ w_dir }}/ecom/target/ecom"
+      dest: "{{sales_root}}/images/{{storeVersion}}/tomcat/webapps/ROOT"
+    - 
+      src: "{{ w_dir }}/admin/target/admin-1.0"
+      dest: "{{sales_root}}/images/{{storeVersion}}/tomcat/webapps/admin"

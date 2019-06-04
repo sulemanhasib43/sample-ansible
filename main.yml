@@ -1,0 +1,48 @@
+---
+# tasks file for tibolli_docker_image_build_deploy
+
+- name: Store Version
+  debug:
+    msg: "Store Version is {{ storeVersion }}"
+
+- name: Ecom & Admin, Git Stash, Fetch All Branches & Checkout
+  include_role:
+    name: common
+    tasks_from: git
+  with_items:
+    -
+      repo: "{{ gitlab }}/root/ecom"
+      dest: "{{ w_dir}}/ecom"
+    -
+      repo: "{{ gitlab }}/root/admin"
+      dest: "{{ w_dir}}/admin"
+
+- name: Create Dir Structure from Template
+  command: cp -r "{{sales_root}}/images/.template/" "{{sales_root}}/images/{{storeVersion}}/"
+
+- name: Updating CDN Dir
+  command: cp -r "{{ w_dir}}/ecom/store/cdn/" "{{sales_root}}/images/{{storeVersion}}/cdn/"
+
+- name: Copying Store DB Schema
+  command: cp "{{ w_dir}}/ecom/store/backup2.sql" "{{sales_root}}/images/{{storeVersion}}/tomcat/dbdump/"
+
+- name: Copying migrate.sql
+  command: cp "{{ w_dir}}/ecom/store/{{storeVersion}}.sql" "{{sales_root}}/images/{{storeVersion}}/migrate/{{storeVersion}}.sql"
+  ignore_errors: yes
+
+- name: Build Ecom and Admin
+  include_tasks: ea_build.yml
+
+- name: Build Docker Image and deploy on stores
+  include_tasks: docker_build.yml
+
+- name: Deployment Done
+  debug:
+    msg: "***Image is deployed. Next taks will push this Image to Gilab > Ecom > Registry; for Later use. You can get back to coding at this point there is no point in staring the screen any more, ThankYou :D ***"
+
+- name: Tag and push to GitLab registry
+  docker_image:
+     name: "swarm.hub:4000/store.{{ storeVersion }}:latest"
+     repository: "git.hub.com:1234/root/ecom/{{ storeVersion }}"
+     tag: latest
+     push: yes
